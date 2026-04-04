@@ -1,0 +1,117 @@
+# ============================================
+# ConfigMap : stocke les variables de config
+# de l'application Spring Boot
+# ============================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: product-api-config
+  namespace: devops-l3gl
+data:
+  # URL de connexion MySQL (mysql-service = nom du Service MySQL)
+  SPRING_DATASOURCE_URL: jdbc:mysql://mysql-service:3306/product_db
+  SPRING_DATASOURCE_USERNAME: springuser
+  SPRING_DATASOURCE_PASSWORD: motdepasse123
+  # Port de l'application
+  SERVER_PORT: "8086"
+  # Nom de l'application pour Loki
+  SPRING_APPLICATION_NAME: product-api
+
+---
+# ============================================
+# Deployment Spring Boot
+# Déploie l'application product-api
+# avec probes, ressources et config
+# ============================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: product-api
+  namespace: devops-l3gl
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: product-api
+  template:
+    metadata:
+      labels:
+        app: product-api
+    spec:
+      containers:
+        - name: product-api
+          # Image poussée sur Docker Hub
+          image: oumouanne/product-api:latest
+          ports:
+            - containerPort: 8086
+          # Monte le ConfigMap comme variables d'environnement
+          envFrom:
+            - configMapRef:
+                name: product-api-config
+          # Limites et requests CPU/Memory imposées par le sujet
+          resources:
+            requests:
+              cpu: 200m        # CPU minimum garanti
+              memory: 250Mi    # Mémoire minimum garantie
+            limits:
+              cpu: 400m        # CPU maximum autorisé
+              memory: 500Mi    # Mémoire maximum autorisée
+          # ReadinessProbe : vérifie si l'app est prête à recevoir du trafic
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8086
+            initialDelaySeconds: 30  # Attendre 30s avant le 1er check
+            periodSeconds: 10        # Vérifier toutes les 10s
+            failureThreshold: 3      # Echouer après 3 tentatives
+          # LivenessProbe : vérifie si l'app est encore en vie
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8086
+            initialDelaySeconds: 60  # Attendre 60s avant le 1er check
+            periodSeconds: 15        # Vérifier toutes les 15s
+            failureThreshold: 3      # Echouer après 3 tentatives
+
+---
+# ============================================
+# Service ClusterIP : expose l'app en interne
+# sur le port 8086 (imposé par le sujet)
+# ============================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: product-api-service
+  namespace: devops-l3gl
+spec:
+  selector:
+    app: product-api
+  ports:
+    - port: 8086
+      targetPort: 8086
+  type: ClusterIP
+
+---
+# ============================================
+# Ingress : route le trafic HTTP externe
+# vers le service product-api-service
+# ============================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: product-api-ingress
+  namespace: devops-l3gl
+  annotations:
+    # Réécriture de l'URL : /l3gl/api/products → /api/products
+    nginx.ingress.kubernetes.io/rewrite-target: /$1
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /(.*)
+            pathType: Prefix
+            backend:
+              service:
+                name: product-api-service
+                port:
+                  number: 8086

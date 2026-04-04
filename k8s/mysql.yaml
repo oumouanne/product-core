@@ -1,0 +1,64 @@
+# ============================================
+# Secret MySQL : stocke les credentials
+# de façon sécurisée (recommandé vs ConfigMap)
+# ============================================
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mysql-secret
+  namespace: devops-l3gl
+type: Opaque
+stringData:
+  MYSQL_ROOT_PASSWORD: rootpassword
+  MYSQL_DATABASE: product_db
+  MYSQL_USER: springuser
+  MYSQL_PASSWORD: motdepasse123
+
+---
+# ============================================
+# Deployment MySQL : déploie le conteneur MySQL
+# replicas: 1 = un seul pod MySQL
+# ============================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql
+  namespace: devops-l3gl
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      containers:
+        - name: mysql
+          image: mysql:8.0
+          ports:
+            - containerPort: 3306
+          # Monte le Secret comme variables d'environnement
+          envFrom:
+            - secretRef:
+                name: mysql-secret
+
+---
+# ============================================
+# Service MySQL : expose MySQL en interne
+# ClusterIP = accessible uniquement dans le cluster
+# port 3306 = port standard MySQL
+# ============================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql-service
+  namespace: devops-l3gl
+spec:
+  selector:
+    app: mysql
+  ports:
+    - port: 3306
+      targetPort: 3306
+  type: ClusterIP

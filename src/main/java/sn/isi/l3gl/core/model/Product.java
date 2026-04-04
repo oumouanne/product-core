@@ -1,7 +1,7 @@
 package sn.isi.l3gl.core.model;
 
 import jakarta.persistence.*;
-
+//entity
 @Entity
 @Table(name = "products")
 public class Product {

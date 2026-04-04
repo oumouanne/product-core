@@ -1,0 +1,19 @@
+# ============================================
+# Configuration Prometheus
+# Scrape les métriques de product-api
+# toutes les 10 secondes
+# ============================================
+global:
+  # Intervalle de scraping global : 10 secondes
+  scrape_interval: 10s
+
+scrape_configs:
+  - job_name: 'product-api'
+    # Endpoint Prometheus de Spring Boot Actuator
+    metrics_path: '/l3gl/actuator/prometheus'
+    static_configs:
+      # Remplacez <IP-VM1> par l'IP réelle de votre VM Kubernetes
+      - targets: ['<IP-VM1>:80']
+        labels:
+          app: 'product-api'
+          group: 'l3gl's
